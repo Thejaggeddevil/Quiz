@@ -1,5 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from game import GameRoom
+import asyncio
+
 
 app = FastAPI()
 rooms = {}
@@ -42,7 +44,11 @@ async def websocket_game(ws: WebSocket, room_id: str, player_id: str):
                         await p.send_json({
                             "type": "RESULT",
                             "winner": winner,
-                            "scores": room.scores
+                            "scores": {
+    f"Player {i+1}": room.scores[pid]
+    for i, pid in enumerate(room.player_order)
+}
+
                         })
 
                     # move to next question
@@ -60,8 +66,32 @@ async def websocket_game(ws: WebSocket, room_id: str, player_id: str):
                         for p in room.players.values():
                             await p.send_json({
                                 "type": "GAME_OVER",
-                                "scores": room.scores
+                                "scores": {
+    f"Player {i+1}": room.scores[pid]
+    for i, pid in enumerate(room.player_order)
+}
+
                             })
 
     except WebSocketDisconnect:
         room.players.pop(player_id, None)
+async def question_timeout(room):
+    await asyncio.sleep(12)  # 10 sec
+    if not room.answered:
+        if room.next_question():
+            q = room.current_question()
+            for p in room.players.values():
+                await p.send_json({
+                    "type": "QUESTION",
+                    "question": q["question"],
+                    "options": q["options"]
+                })
+        else:
+            for p in room.players.values():
+                await p.send_json({
+                    "type": "GAME_OVER",
+                    "scores": {
+                        f"Player {i+1}": room.scores[pid]
+                        for i, pid in enumerate(room.player_order)
+                    }
+                })
