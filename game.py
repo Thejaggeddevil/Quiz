@@ -58,18 +58,17 @@ class GameRoom:
     def __init__(self, room_id):
         self.room_id = room_id
         self.players = {}          # player_id -> websocket
-        self.scores = {}   
-        self.player_order = []        # player_id -> score
+        self.scores = {}           # player_id -> score
+        self.player_order = []     # join order of players
         self.current_index = 0
         self.answered = False
 
     def add_player(self, player_id, ws):
-     self.players[player_id] = ws
-     self.scores.setdefault(player_id, 0)
+        self.players[player_id] = ws
+        self.scores.setdefault(player_id, 0)
 
-    if player_id not in self.player_order:
-        self.player_order.append(player_id)
-
+        if player_id not in self.player_order:
+            self.player_order.append(player_id)
 
     def current_question(self):
         return QUESTIONS[self.current_index]
