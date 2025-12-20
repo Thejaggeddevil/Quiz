@@ -54,35 +54,44 @@ QUESTIONS = [
 ]
 
 
+MAX_PLAYERS = 5
+
 class GameRoom:
     def __init__(self, room_id):
         self.room_id = room_id
         self.players = {}          # player_id -> websocket
         self.scores = {}           # player_id -> score
-        self.player_order = []     # join order of players
+        self.player_order = []     # join order
         self.current_index = 0
         self.answered = False
+        self.started = False
 
     def add_player(self, player_id, ws):
+        if player_id in self.players:
+            return
+
+        if len(self.player_order) >= MAX_PLAYERS:
+            raise Exception("Room full")
+
         self.players[player_id] = ws
         self.scores.setdefault(player_id, 0)
+        self.player_order.append(player_id)
 
-        if player_id not in self.player_order:
-            self.player_order.append(player_id)
+    def get_player_number(self, player_id):
+        return self.player_order.index(player_id) + 1
 
     def current_question(self):
         return QUESTIONS[self.current_index]
 
     def check_answer(self, player_id, answer):
         if self.answered:
-            return None
+            return False
 
         if answer == self.current_question()["correct"]:
             self.answered = True
             self.scores[player_id] += 1
-            return player_id
-
-        return None
+            return True
+        return False
 
     def next_question(self):
         self.current_index += 1
