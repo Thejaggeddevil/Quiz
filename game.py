@@ -53,8 +53,8 @@ QUESTIONS = [
     }
 ]
 
-
 MAX_PLAYERS = 5
+
 
 class GameRoom:
     def __init__(self, room_id):
@@ -65,6 +65,7 @@ class GameRoom:
         self.current_index = 0
         self.answered = False
         self.started = False
+        self.question_version = 0  # 🔥 CRITICAL FIX
 
     def add_player(self, player_id, ws):
         if player_id in self.players:
@@ -91,9 +92,14 @@ class GameRoom:
             self.answered = True
             self.scores[player_id] += 1
             return True
+
         return False
 
     def next_question(self):
+       
+        if self.current_index + 1 >= len(QUESTIONS):
+            return False
+
         self.current_index += 1
         self.answered = False
-        return self.current_index < len(QUESTIONS)
+        return True
