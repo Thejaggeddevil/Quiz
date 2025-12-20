@@ -2,7 +2,6 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from game import GameRoom
 import asyncio
 
-
 app = FastAPI()
 rooms = {}
 
@@ -18,80 +17,71 @@ async def websocket_game(ws: WebSocket, room_id: str, player_id: str):
         rooms[room_id] = GameRoom(room_id)
 
     room = rooms[room_id]
-    room.add_player(player_id, ws)
 
-    # Start when 2 players join
-    if len(room.players) == 2:
-        q = room.current_question()
-        for p in room.players.values():
-            await p.send_json({
-                "type": "QUESTION",
-                "question": q["question"],
-                "options": q["options"],
-                "index": room.current_index + 1
-            })
+    try:
+        room.add_player(player_id, ws)
+    except Exception:
+        await ws.close()
+        return
+
+    # 🔹 SEND PLAYER NUMBER (VERY IMPORTANT)
+    player_number = room.get_player_number(player_id)
+    await ws.send_json({
+        "type": "PLAYER_INFO",
+        "you_are": f"Player {player_number}"
+    })
+
+    # 🔹 START GAME WHEN MIN 2 PLAYERS JOIN (ONLY ONCE)
+    if len(room.players) >= 2 and not room.started:
+        room.started = True
+        await send_question(room)
 
     try:
         while True:
             data = await ws.receive_json()
 
             if data["type"] == "ANSWER":
-                winner = room.check_answer(player_id, data["answer"])
+                correct = room.check_answer(player_id, data["answer"])
 
-                if winner:
-                    # send result
-                    for p in room.players.values():
-                        await p.send_json({
-                            "type": "RESULT",
-                            "winner": winner,
-                            "scores": {
-    f"Player {i+1}": room.scores[pid]
-    for i, pid in enumerate(room.player_order)
-}
+                if correct:
+                    # 🔹 SEND RESULT TO ALL
+                    await broadcast(room, {
+                        "type": "RESULT",
+                        "winner": f"Player {room.get_player_number(player_id)}",
+                        "scores": format_scores(room)
+                    })
 
-                        })
+                    await asyncio.sleep(1)
 
-                    # move to next question
+                    # 🔹 NEXT QUESTION OR GAME OVER
                     if room.next_question():
-                        q = room.current_question()
-                        for p in room.players.values():
-                            await p.send_json({
-                                "type": "QUESTION",
-                                "question": q["question"],
-                                "options": q["options"],
-                                "index": room.current_index + 1
-                            })
+                        await send_question(room)
                     else:
-                        # game over
-                        for p in room.players.values():
-                            await p.send_json({
-                                "type": "GAME_OVER",
-                                "scores": {
-    f"Player {i+1}": room.scores[pid]
-    for i, pid in enumerate(room.player_order)
-}
-
-                            })
+                        await broadcast(room, {
+                            "type": "GAME_OVER",
+                            "scores": format_scores(room)
+                        })
 
     except WebSocketDisconnect:
         room.players.pop(player_id, None)
-async def question_timeout(room):
-    await asyncio.sleep(12)  # 10 sec
-    if not room.answered:
-        if room.next_question():
-            q = room.current_question()
-            for p in room.players.values():
-                await p.send_json({
-                    "type": "QUESTION",
-                    "question": q["question"],
-                    "options": q["options"]
-                })
-        else:
-            for p in room.players.values():
-                await p.send_json({
-                    "type": "GAME_OVER",
-                    "scores": {
-                        f"Player {i+1}": room.scores[pid]
-                        for i, pid in enumerate(room.player_order)
-                    }
-                })
+
+# ===================== HELPERS =====================
+
+async def send_question(room: GameRoom):
+    q = room.current_question()
+    await broadcast(room, {
+        "type": "QUESTION",
+        "question": q["question"],
+        "options": q["options"],
+        "index": room.current_index + 1
+    })
+
+def format_scores(room: GameRoom):
+    return {
+        f"Player {i+1}": room.scores[pid]
+        for i, pid in enumerate(room.player_order)
+    }
+
+async def broadcast(room: GameRoom, message: dict):
+    for ws in room.players.values():
+        await ws.send_json(message)
