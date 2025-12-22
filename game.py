@@ -2,25 +2,20 @@ import asyncio
 
 MAX_PLAYERS = 5
 
-
 class GameRoom:
     def __init__(self, room_id):
         self.room_id = room_id
-        self.players = {}          # player_id -> websocket
-        self.scores = {}           # player_id -> score
-        self.player_order = []     # join order
+        self.players = {}
+        self.scores = {}
+        self.player_order = []
         self.current_index = 0
         self.answered = False
         self.started = False
-
         self.timer_task = None
-
-    # ---------------- PLAYER MANAGEMENT ----------------
 
     def add_player(self, player_id, ws):
         if player_id in self.players:
             return
-
         if len(self.player_order) >= MAX_PLAYERS:
             raise Exception("Room full")
 
@@ -31,28 +26,19 @@ class GameRoom:
     def get_player_number(self, player_id):
         return self.player_order.index(player_id) + 1
 
-    # ---------------- GAME STATE ----------------
-
-    def next_question(self, total_questions: int):
-        if self.current_index + 1 >= total_questions:
-            return False
-
-        self.current_index += 1
-        self.answered = False
-        return True
-
     def check_answer(self, player_id, answer, correct_answer):
         if self.answered:
             return False
-
         if answer == correct_answer:
             self.answered = True
             self.scores[player_id] += 1
             return True
-
         return False
 
-    # ---------------- TIMER ----------------
+    def next_question(self, total):
+        self.current_index += 1
+        self.answered = False
+        return self.current_index < total
 
     def start_timer(self, seconds, on_timeout):
         self.cancel_timer()
