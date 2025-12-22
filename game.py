@@ -1,57 +1,4 @@
-import time
-
-QUESTIONS = [
-    {
-        "question": "Capital of India?",
-        "options": ["Delhi", "Mumbai", "Chennai", "Kolkata"],
-        "correct": "Delhi"
-    },
-    {
-        "question": "2 + 2 = ?",
-        "options": ["3", "4", "5", "6"],
-        "correct": "4"
-    },
-    {
-        "question": "Color of sky?",
-        "options": ["Blue", "Red", "Green", "Yellow"],
-        "correct": "Blue"
-    },
-    {
-        "question": "Largest planet?",
-        "options": ["Earth", "Mars", "Jupiter", "Venus"],
-        "correct": "Jupiter"
-    },
-    {
-        "question": "5 x 6 = ?",
-        "options": ["30", "11", "56", "20"],
-        "correct": "30"
-    },
-    {
-        "question": "Opposite of hot?",
-        "options": ["Cold", "Warm", "Fire", "Heat"],
-        "correct": "Cold"
-    },
-    {
-        "question": "Sun rises in?",
-        "options": ["North", "South", "East", "West"],
-        "correct": "East"
-    },
-    {
-        "question": "Water freezes at?",
-        "options": ["0°C", "50°C", "100°C", "10°C"],
-        "correct": "0°C"
-    },
-    {
-        "question": "Fastest animal?",
-        "options": ["Dog", "Cheetah", "Horse", "Tiger"],
-        "correct": "Cheetah"
-    },
-    {
-        "question": "HTML is used for?",
-        "options": ["Styling", "Logic", "Structure", "Database"],
-        "correct": "Structure"
-    }
-]
+import asyncio
 
 MAX_PLAYERS = 5
 
@@ -65,7 +12,10 @@ class GameRoom:
         self.current_index = 0
         self.answered = False
         self.started = False
-        self.question_version = 0  # 🔥 CRITICAL FIX
+
+        self.timer_task = None
+
+    # ---------------- PLAYER MANAGEMENT ----------------
 
     def add_player(self, player_id, ws):
         if player_id in self.players:
@@ -81,25 +31,40 @@ class GameRoom:
     def get_player_number(self, player_id):
         return self.player_order.index(player_id) + 1
 
-    def current_question(self):
-        return QUESTIONS[self.current_index]
+    # ---------------- GAME STATE ----------------
 
-    def check_answer(self, player_id, answer):
+    def next_question(self, total_questions: int):
+        if self.current_index + 1 >= total_questions:
+            return False
+
+        self.current_index += 1
+        self.answered = False
+        return True
+
+    def check_answer(self, player_id, answer, correct_answer):
         if self.answered:
             return False
 
-        if answer == self.current_question()["correct"]:
+        if answer == correct_answer:
             self.answered = True
             self.scores[player_id] += 1
             return True
 
         return False
 
-    def next_question(self):
-       
-        if self.current_index + 1 >= len(QUESTIONS):
-            return False
+    # ---------------- TIMER ----------------
 
-        self.current_index += 1
-        self.answered = False
-        return True
+    def start_timer(self, seconds, on_timeout):
+        self.cancel_timer()
+
+        async def timer():
+            await asyncio.sleep(seconds)
+            if not self.answered:
+                await on_timeout()
+
+        self.timer_task = asyncio.create_task(timer())
+
+    def cancel_timer(self):
+        if self.timer_task:
+            self.timer_task.cancel()
+            self.timer_task = None
