@@ -8,3 +8,6 @@ def add_question(q: Question):
 
 def get_questions() -> List[Question]:
     return QUESTIONS
+
+def clear_questions():
+    QUESTIONS.clear()

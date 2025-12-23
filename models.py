@@ -4,4 +4,4 @@ from typing import List
 class Question(BaseModel):
     question: str
     options: List[str]
-    correct_index: int
+    correct: str
